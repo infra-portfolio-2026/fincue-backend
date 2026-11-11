@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 금융 관리 - 첫화면 확인</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Malgun Gothic', sans-serif; background: #f5f5f5; margin: 0; padding: 24px; }
+    h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    .sub { color: #666; margin-bottom: 24px; }
+    .links { margin-bottom: 24px; }
+    .links a { margin-right: 12px; color: #2563eb; }
+    section { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    section h2 { margin-top: 0; font-size: 1.1rem; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+    .card { border: 1px solid #eee; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .card:last-child { margin-bottom: 0; }
+    .row { display: flex; gap: 24px; flex-wrap: wrap; }
+    .col { flex: 1; min-width: 280px; }
+    .meta { font-size: 0.85rem; color: #666; margin-top: 6px; }
+    .meta span { margin-right: 12px; }
+    .loading { color: #888; }
+    .err { color: #b91c1c; }
+    .total { font-weight: bold; margin-top: 12px; }
+    input[type="text"], input[type="number"] { padding: 6px 10px; margin-right: 8px; }
+    label { margin-right: 4px; }
+  </style>
+</head>
+<body>
+  <h1>당신과 함께하는 AI 금융 관리</h1>
+  <p class="sub">첫화면 API 확인용 페이지 · 백엔드 실행 후 브라우저에서 바로 확인할 수 있습니다.</p>
+  <div class="links">
+    <a href="/">로그인</a>
+    <a href="/swagger-ui.html" target="_blank">Swagger UI 열기</a>
+    <a href="/v3/api-docs" target="_blank">OpenAPI JSON</a>
+  </div>
+
+  <div class="row">
+    <section class="col">
+      <h2>대표 TIP</h2>
+      <div id="tips" class="loading">불러오는 중...</div>
+    </section>
+    <section class="col">
+      <h2>실시간 HOT 게시글</h2>
+      <div id="hot" class="loading">불러오는 중...</div>
+    </section>
+  </div>
+
+  <section>
+    <h2>이번달 소비분석</h2>
+    <p>
+      <label>연도</label><input type="number" id="year" min="2000" max="2100">
+      <label>월</label><input type="number" id="month" min="1" max="12">
+      <button type="button" onclick="loadMonthly()">조회</button>
+      <span class="meta">(비워두면 이번 달 · 로그인한 유저 기준)</span>
+    </p>
+    <div id="monthly" class="loading">페이지 로드 시 로그인 유저의 이번 달 소비를 자동으로 불러옵니다.</div>
+  </section>
+
+  <script>
+    const API = '';
+    function renderPostCard(p) {
+      const tags = (p.tags && p.tags.length) ? '#' + p.tags.join(' #') : '';
+      return '<div class="card"><div>' + (p.title || '(제목 없음)') + '</div>' +
+        (tags ? '<div class="meta">' + tags + '</div>' : '') +
+        '<div class="meta"><span>' + (p.date || '') + '</span><span>👍 ' + (p.likeCount || 0) + '</span><span>💬 ' + (p.commentCount || 0) + '</span></div></div>';
+    }
+    function renderTips(list) {
+      const el = document.getElementById('tips');
+      if (!list || list.length === 0) { el.innerHTML = '대표 TIP 게시글이 없습니다. (isTip=true인 게시글만 표시)'; return; }
+      el.innerHTML = list.map(renderPostCard).join('');
+    }
+    function renderHot(list) {
+      const el = document.getElementById('hot');
+      if (!list || list.length === 0) { el.innerHTML = 'HOT 게시글이 없습니다.'; return; }
+      el.innerHTML = list.map(renderPostCard).join('');
+    }
+    function renderMonthly(data) {
+      const el = document.getElementById('monthly');
+      if (!data) { el.innerHTML = '<span class="err">조회 실패</span>'; return; }
+      const cats = (data.byCategory || []).map(c => c.category + ': ' + Number(c.amount).toLocaleString() + '원').join('<br>');
+      const total = data.totalAmount != null ? Number(data.totalAmount).toLocaleString() + ' WON' : '0 WON';
+      el.innerHTML = (cats ? cats + '<br>' : '소비 내역 없음<br>') + '<div class="total">총액: ' + total + '</div>';
+    }
+    async function loadTips() {
+      try {
+        const r = await fetch(API + '/api/posts/tips?page=0&size=10');
+        const list = await r.json();
+        renderTips(list);
+      } catch (e) {
+        document.getElementById('tips').innerHTML = '<span class="err">오류: ' + e.message + '</span>';
+      }
+    }
+    async function loadHot() {
+      try {
+        const r = await fetch(API + '/api/posts/hot?page=0&size=10');
+        const list = await r.json();
+        renderHot(list);
+      } catch (e) {
+        document.getElementById('hot').innerHTML = '<span class="err">오류: ' + e.message + '</span>';
+      }
+    }
+    async function loadMonthly() {
+      const year = document.getElementById('year').value;
+      const month = document.getElementById('month').value;
+      const el = document.getElementById('monthly');
+      el.innerHTML = '불러오는 중...';
+      let url = API + '/api/spendings/monthly-summary';
+      if (year) url += '?year=' + year;
+      if (month) url += (url.includes('?') ? '&' : '?') + 'month=' + month;
+      try {
+        const r = await fetch(url, { credentials: 'same-origin' });
+        if (r.status === 401) {
+          el.innerHTML = '로그인이 필요합니다. <a href="/">로그인</a> 후 다시 시도하세요.';
+          return;
+        }
+        const data = await r.json();
+        renderMonthly(data);
+      } catch (e) {
+        el.innerHTML = '<span class="err">오류: ' + e.message + '</span>';
+      }
+    }
+    function setCurrentYearMonth() {
+      const now = new Date();
+      document.getElementById('year').value = now.getFullYear();
+      document.getElementById('month').value = now.getMonth() + 1;
+    }
+    setCurrentYearMonth();
+    loadTips();
+    loadHot();
+    loadMonthly();
+  </script>
+</body>
+</html>
